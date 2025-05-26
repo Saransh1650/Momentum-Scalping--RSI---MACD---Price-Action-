@@ -5,12 +5,12 @@ from data_fetcher import CoinDCXFetcher
 
 wallet = Wallet(initial_balance=1000)
 algo = Algo(wallet)
-fetcher = CoinDCXFetcher(symbol="BTCINR")
-
+fetcher = CoinDCXFetcher(symbol="WOOPUSDT")
 while True:
     price = fetcher.get_latest_price()  
     if price:
         print(price)
         algo.decide(price)
         wallet.summary(price)
-    time.sleep(2)
+        algo.plot()
+    time.sleep(3)
