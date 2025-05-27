@@ -27,9 +27,10 @@ class Algo:
         loss = np.abs(np.minimum(delta, 0))
         avg_gain = np.mean(gain[-period:])
         avg_loss = np.mean(loss[-period:])
-        if avg_loss == 0:
+        epsilon = 1e-10
+        if avg_loss < epsilon:
             return 100.0
-        rs = avg_gain / avg_loss
+        rs = min(avg_gain / avg_loss, 1e6)
         return 100 - (100 / (1 + rs))
 
     def calculate_macd(self, prices, fast=12, slow=26, signal=9):
@@ -43,7 +44,7 @@ class Algo:
         self.signal_vals.append(signal_line)
         return macd, signal_line
 
-    def is_flat_market(self, window=20, threshold=0.0005):
+    def is_flat_market(self, window=20, threshold=0.001):
         if len(self.close_prices) < window:
             return False
         recent = self.close_prices[-window:]
@@ -51,7 +52,8 @@ class Algo:
 
     def should_skip_due_to_price_stagnation(self, price):
         if self.last_trade_price is not None:
-            if abs(price - self.last_trade_price) < 0.01:
+            diff = abs(price - self.last_trade_price)
+            if diff / self.last_trade_price < 0.002:  # 0.2% threshold
                 print("Skipping trade due to price stagnation")
                 return True
         return False
@@ -72,12 +74,12 @@ class Algo:
         if rsi is None or macd is None:
             return
 
-        # if self.should_skip_due_to_price_stagnation(price):
-        #     return
+        if self.should_skip_due_to_price_stagnation(price):
+            return
 
         if self.wallet.crypto > 0 and self.is_flat_market():
-            print(f"Detected flat market. Selling all at price {price}")
-            self.wallet.sell(price, amount_pct=1.0)
+            print(f"Flat market detected. Selling to avoid stagnation.")
+            self.wallet.sell(price, amount_pct=0.5)
             self.last_trade_price = price
             self.sell_points.append((self.timestamps[-1], price))
             return
@@ -86,7 +88,7 @@ class Algo:
         if rsi < 30:
             if macd > signal:
                 print("High-confidence BUY signal")
-                self.wallet.buy(price, amount_pct=0.1)
+                self.wallet.buy(price, amount_pct=1)
                 self.last_trade_price = price
                 self.pending_rsi_buy = False
                 self.buy_points.append((self.timestamps[-1], price))
@@ -94,7 +96,7 @@ class Algo:
                 self.pending_rsi_buy = True
         elif self.pending_rsi_buy and macd > signal:
             print("Delayed BUY on MACD confirmation")
-            self.wallet.buy(price, amount_pct=0.05)
+            self.wallet.buy(price, amount_pct=0.5)
             self.last_trade_price = price
             self.pending_rsi_buy = False
             self.buy_points.append((self.timestamps[-1], price))
@@ -103,7 +105,7 @@ class Algo:
         if rsi > 70:
             if macd < signal:
                 print("High-confidence SELL signal")
-                self.wallet.sell(price, amount_pct=0.1)
+                self.wallet.sell(price, amount_pct=1)
                 self.last_trade_price = price
                 self.pending_rsi_sell = False
                 self.sell_points.append((self.timestamps[-1], price))
@@ -111,7 +113,7 @@ class Algo:
                 self.pending_rsi_sell = True
         elif self.pending_rsi_sell and macd < signal:
             print("Delayed SELL on MACD confirmation")
-            self.wallet.sell(price, amount_pct=0.05)
+            self.wallet.sell(price, amount_pct=0.5)
             self.last_trade_price = price
             self.pending_rsi_sell = False
             self.sell_points.append((self.timestamps[-1], price))
