@@ -5,7 +5,7 @@ from data_fetcher import CoinDCXFetcher
 
 wallet = Wallet(initial_balance=1000)
 algo = Algo(wallet)
-fetcher = CoinDCXFetcher(symbol="WOOPUSDT")
+fetcher = CoinDCXFetcher(symbol="OPUSDT")
 while True:
     price = fetcher.get_latest_price()  
     if price:
@@ -13,4 +13,4 @@ while True:
         algo.decide(price)
         wallet.summary(price)
         algo.plot()
-    time.sleep(3)
+    time.sleep(2)

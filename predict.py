@@ -19,6 +19,15 @@ class Algo:
         self.buy_points = []
         self.sell_points = []
 
+    def ema(self, prices, period):
+        if len(prices) < period:
+            return None
+        ema_vals = [prices[0]]
+        alpha = 2 / (period + 1)
+        for price in prices[1:]:
+            ema_vals.append((price - ema_vals[-1]) * alpha + ema_vals[-1])
+        return ema_vals[-1]
+
     def calculate_rsi(self, prices, period=14):
         if len(prices) < period:
             return None
@@ -36,11 +45,11 @@ class Algo:
     def calculate_macd(self, prices, fast=12, slow=26, signal=9):
         if len(prices) < slow:
             return None, None
-        ema_fast = np.mean(prices[-fast:])
-        ema_slow = np.mean(prices[-slow:])
+        ema_fast = self.ema(prices[-slow:], fast)
+        ema_slow = self.ema(prices[-slow:], slow)
         macd = ema_fast - ema_slow
         self.macd_vals.append(macd)
-        signal_line = np.mean(self.macd_vals[-signal:]) if len(self.macd_vals) >= signal else 0
+        signal_line = self.ema(self.macd_vals, signal) if len(self.macd_vals) >= signal else 0
         self.signal_vals.append(signal_line)
         return macd, signal_line
 
@@ -53,7 +62,7 @@ class Algo:
     def should_skip_due_to_price_stagnation(self, price):
         if self.last_trade_price is not None:
             diff = abs(price - self.last_trade_price)
-            if diff / self.last_trade_price < 0.002:  # 0.2% threshold
+            if diff / self.last_trade_price < 0.002:
                 print("Skipping trade due to price stagnation")
                 return True
         return False
@@ -67,6 +76,7 @@ class Algo:
 
         rsi = self.calculate_rsi(self.close_prices)
         macd, signal = self.calculate_macd(self.close_prices)
+
         self.rsi_vals.append(rsi if rsi is not None else np.nan)
 
         print(f"Price: {price:.2f}, RSI: {rsi:.2f}, MACD: {macd:.4f}, Signal: {signal:.4f}")
@@ -77,14 +87,15 @@ class Algo:
         if self.should_skip_due_to_price_stagnation(price):
             return
 
+        # Flat Market: Reduce exposure
         if self.wallet.crypto > 0 and self.is_flat_market():
-            print(f"Flat market detected. Selling to avoid stagnation.")
+            print("Flat market detected. Selling 50% to avoid stagnation.")
             self.wallet.sell(price, amount_pct=0.5)
             self.last_trade_price = price
             self.sell_points.append((self.timestamps[-1], price))
             return
 
-        # Buy logic
+        # Buy Logic
         if rsi < 30:
             if macd > signal:
                 print("High-confidence BUY signal")
@@ -101,7 +112,7 @@ class Algo:
             self.pending_rsi_buy = False
             self.buy_points.append((self.timestamps[-1], price))
 
-        # Sell logic
+        # Sell Logic
         if rsi > 70:
             if macd < signal:
                 print("High-confidence SELL signal")
@@ -125,6 +136,7 @@ class Algo:
         plt.figure(1, figsize=(14, 8))
         plt.clf()
 
+        # Price chart
         plt.subplot(3, 1, 1)
         plt.plot(self.timestamps, self.close_prices, label="Price", color='black')
         buy_x, buy_y = zip(*self.buy_points) if self.buy_points else ([], [])
@@ -134,6 +146,7 @@ class Algo:
         plt.title("Price Movement")
         plt.legend()
 
+        # RSI chart
         plt.subplot(3, 1, 2)
         rsi_x = self.timestamps[-len(self.rsi_vals):]
         rsi_clean = [float(val) if val is not None else np.nan for val in self.rsi_vals]
@@ -143,6 +156,7 @@ class Algo:
         plt.title("RSI")
         plt.legend()
 
+        # MACD chart
         plt.subplot(3, 1, 3)
         macd_x = self.timestamps[-len(self.macd_vals):]
         signal_trimmed = self.signal_vals[-len(self.macd_vals):]
