@@ -18,6 +18,8 @@ class Algo:
         self.pending_rsi_sell = False
         self.buy_points = []
         self.sell_points = []
+        self.last_bids = []
+        self.last_ask = []
 
     def ema(self, prices, period):
         if len(prices) < period:
@@ -67,7 +69,23 @@ class Algo:
                 return True
         return False
 
-    def decide(self, price, timestamp=None):
+    def get_order_book_pressure(self, bids, asks, top_n=5):
+        """
+        Calculate order book pressure as (sum_bid_volume - sum_ask_volume) / total_volume
+        Positive => buy pressure, Negative => sell pressure
+        """
+        if not bids or not asks:
+            print("[WARNING] Empty order book, skipping this tick.")
+            return
+        sum_bid_vol = sum(float(bid[1]) for bid in bids[:top_n])
+        sum_ask_vol = sum(float(ask[1]) for ask in asks[:top_n])
+        total_vol = sum_bid_vol + sum_ask_vol
+        if total_vol == 0:
+            return 0
+        pressure = (sum_bid_vol - sum_ask_vol) / total_vol
+        return pressure
+
+    def decide(self, price, bids=None, asks=None, timestamp=None):
         self.close_prices.append(price)
         self.timestamps.append(timestamp if timestamp is not None else len(self.close_prices))
 
@@ -76,7 +94,6 @@ class Algo:
 
         rsi = self.calculate_rsi(self.close_prices)
         macd, signal = self.calculate_macd(self.close_prices)
-
         self.rsi_vals.append(rsi if rsi is not None else np.nan)
 
         print(f"Price: {price:.2f}, RSI: {rsi:.2f}, MACD: {macd:.4f}, Signal: {signal:.4f}")
@@ -87,6 +104,14 @@ class Algo:
         if self.should_skip_due_to_price_stagnation(price):
             return
 
+        # Calculate order book pressure if data is available
+        pressure = 0
+        if bids is not None and asks is not None:
+            self.last_bids = bids
+            self.last_ask = asks
+            pressure = self.get_order_book_pressure(bids, asks)
+            print(f"Order Book Pressure: {pressure:.4f}")
+
         # Flat Market: Reduce exposure
         if self.wallet.crypto > 0 and self.is_flat_market():
             print("Flat market detected. Selling 50% to avoid stagnation.")
@@ -96,48 +121,49 @@ class Algo:
             return
 
         # Buy Logic
-        if rsi < 30:
-            if macd > signal:
-                print("High-confidence BUY signal")
-                self.wallet.buy(price, amount_pct=1)
-                self.last_trade_price = price
-                self.pending_rsi_buy = False
-                self.buy_points.append((self.timestamps[-1], price))
-            else:
-                self.pending_rsi_buy = True
-        elif self.pending_rsi_buy and macd > signal:
-            print("Delayed BUY on MACD confirmation")
+        if rsi < 30 and macd > signal and pressure > 0.1:
+            print("High-confidence BUY signal (with positive order book pressure)")
+            self.wallet.buy(price, amount_pct=1)
+            self.last_trade_price = price
+            self.pending_rsi_buy = False
+            self.buy_points.append((self.timestamps[-1], price))
+        elif self.pending_rsi_buy and macd > signal and pressure > 0.05:
+            print("Delayed BUY on MACD confirmation and mild order book pressure")
             self.wallet.buy(price, amount_pct=0.5)
             self.last_trade_price = price
             self.pending_rsi_buy = False
             self.buy_points.append((self.timestamps[-1], price))
+        else:
+            if rsi < 30:
+                self.pending_rsi_buy = True
 
         # Sell Logic
-        if rsi > 70:
-            if macd < signal:
-                print("High-confidence SELL signal")
-                self.wallet.sell(price, amount_pct=1)
-                self.last_trade_price = price
-                self.pending_rsi_sell = False
-                self.sell_points.append((self.timestamps[-1], price))
-            else:
-                self.pending_rsi_sell = True
-        elif self.pending_rsi_sell and macd < signal:
-            print("Delayed SELL on MACD confirmation")
+        if rsi > 70 and macd < signal and pressure < -0.1:
+            print("High-confidence SELL signal (with negative order book pressure)")
+            self.wallet.sell(price, amount_pct=1)
+            self.last_trade_price = price
+            self.pending_rsi_sell = False
+            self.sell_points.append((self.timestamps[-1], price))
+        elif self.pending_rsi_sell and macd < signal and pressure < -0.05:
+            print("Delayed SELL on MACD confirmation and mild order book pressure")
             self.wallet.sell(price, amount_pct=0.5)
             self.last_trade_price = price
             self.pending_rsi_sell = False
             self.sell_points.append((self.timestamps[-1], price))
+        else:
+            if rsi > 70:
+                self.pending_rsi_sell = True
 
     def plot(self):
         if not self.rsi_vals or not self.macd_vals or not self.signal_vals:
             return
 
-        plt.figure(1, figsize=(14, 8))
+        num_subplots = 4 if self.last_bids and self.last_ask else 3
+        plt.figure(1, figsize=(14, 10))
         plt.clf()
 
-        # Price chart
-        plt.subplot(3, 1, 1)
+        # 1. Price Chart
+        plt.subplot(num_subplots, 1, 1)
         plt.plot(self.timestamps, self.close_prices, label="Price", color='black')
         buy_x, buy_y = zip(*self.buy_points) if self.buy_points else ([], [])
         sell_x, sell_y = zip(*self.sell_points) if self.sell_points else ([], [])
@@ -146,18 +172,18 @@ class Algo:
         plt.title("Price Movement")
         plt.legend()
 
-        # RSI chart
-        plt.subplot(3, 1, 2)
+        # 2. RSI
+        plt.subplot(num_subplots, 1, 2)
         rsi_x = self.timestamps[-len(self.rsi_vals):]
         rsi_clean = [float(val) if val is not None else np.nan for val in self.rsi_vals]
         plt.plot(rsi_x, rsi_clean, label="RSI", color='blue')
-        plt.axhline(70, color='red', linestyle='--', linewidth=1)
-        plt.axhline(30, color='green', linestyle='--', linewidth=1)
+        plt.axhline(70, color='red', linestyle='--')
+        plt.axhline(30, color='green', linestyle='--')
         plt.title("RSI")
         plt.legend()
 
-        # MACD chart
-        plt.subplot(3, 1, 3)
+        # 3. MACD
+        plt.subplot(num_subplots, 1, 3)
         macd_x = self.timestamps[-len(self.macd_vals):]
         signal_trimmed = self.signal_vals[-len(self.macd_vals):]
         plt.plot(macd_x, self.macd_vals, label="MACD", color='purple')
@@ -165,5 +191,25 @@ class Algo:
         plt.title("MACD and Signal")
         plt.legend()
 
+        # 4. Order Book Depth
+        if self.last_bids and self.last_ask:
+            bids = sorted(self.last_bids, key=lambda x: x[0], reverse=True)
+            asks = sorted(self.last_ask, key=lambda x: x[0])
+            bid_prices = [float(b[0]) for b in bids]
+            bid_vols = [float(b[1]) for b in bids]
+            ask_prices = [float(a[0]) for a in asks]
+            ask_vols = [float(a[1]) for a in asks]
+            bid_cum = np.cumsum(bid_vols)
+            ask_cum = np.cumsum(ask_vols)
+
+            plt.subplot(num_subplots, 1, 4)
+            plt.plot(bid_prices, bid_cum, label="Bids", color='green')
+            plt.plot(ask_prices, ask_cum, label="Asks", color='red')
+            plt.title("Order Book Depth")
+            plt.xlabel("Price")
+            plt.ylabel("Cumulative Volume")
+            plt.legend()
+
         plt.tight_layout()
         plt.pause(0.001)
+
