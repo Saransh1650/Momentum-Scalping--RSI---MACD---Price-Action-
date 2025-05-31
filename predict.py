@@ -33,16 +33,19 @@ class Algo:
     def calculate_rsi(self, prices, period=14):
         if len(prices) < period:
             return None
-        delta = np.diff(prices)
+        scaled_prices = np.array(prices) * 1e9  # scale up to make differences significant
+        delta = np.diff(scaled_prices)
         gain = np.maximum(delta, 0)
         loss = np.abs(np.minimum(delta, 0))
+
         avg_gain = np.mean(gain[-period:])
         avg_loss = np.mean(loss[-period:])
-        epsilon = 1e-10
-        if avg_loss < epsilon:
-            return 100.0
-        rs = min(avg_gain / avg_loss, 1e6)
-        return 100 - (100 / (1 + rs))
+        
+        epsilon = 1e-8  # Slightly higher epsilon to ensure stability
+        avg_loss = max(avg_loss, epsilon)
+
+        rs = avg_gain / avg_loss
+        return 100 - (100 / (1 + rs))   
 
     def calculate_macd(self, prices, fast=12, slow=26, signal=9):
         if len(prices) < slow:
@@ -114,45 +117,47 @@ class Algo:
 
         # Flat Market: Reduce exposure
         if self.wallet.crypto > 0 and self.is_flat_market():
-            print("Flat market detected. Selling 50% to avoid stagnation.")
-            self.wallet.sell(price, amount_pct=0.5)
+            print("Flat market detected. Selling 100% to avoid stagnation.")
+            self.wallet.sell(price, amount_pct=1)
             self.last_trade_price = price
             self.sell_points.append((self.timestamps[-1], price))
             return
 
         # Buy Logic
-        if rsi < 30 and macd > signal and pressure > 0.1:
-            print("High-confidence BUY signal (with positive order book pressure)")
-            self.wallet.buy(price, amount_pct=1)
-            self.last_trade_price = price
-            self.pending_rsi_buy = False
-            self.buy_points.append((self.timestamps[-1], price))
-        elif self.pending_rsi_buy and macd > signal and pressure > 0.05:
-            print("Delayed BUY on MACD confirmation and mild order book pressure")
-            self.wallet.buy(price, amount_pct=0.5)
-            self.last_trade_price = price
-            self.pending_rsi_buy = False
-            self.buy_points.append((self.timestamps[-1], price))
-        else:
-            if rsi < 30:
-                self.pending_rsi_buy = True
+        if self.wallet.fiat > 0:
+            if rsi < 30 and macd > signal and pressure > 0.1:
+                print("High-confidence BUY signal (with positive order book pressure)")
+                self.wallet.buy(price, amount_pct=1)
+                self.last_trade_price = price
+                self.pending_rsi_buy = False
+                self.buy_points.append((self.timestamps[-1], price))
+            elif self.pending_rsi_buy and macd > signal and pressure > 0.05:
+                print("Delayed BUY on MACD confirmation and mild order book pressure")
+                self.wallet.buy(price, amount_pct=1)
+                self.last_trade_price = price
+                self.pending_rsi_buy = False
+                self.buy_points.append((self.timestamps[-1], price))
+            else:
+                if rsi < 30:
+                    self.pending_rsi_buy = True
 
         # Sell Logic
-        if rsi > 70 and macd < signal and pressure < -0.1:
-            print("High-confidence SELL signal (with negative order book pressure)")
-            self.wallet.sell(price, amount_pct=1)
-            self.last_trade_price = price
-            self.pending_rsi_sell = False
-            self.sell_points.append((self.timestamps[-1], price))
-        elif self.pending_rsi_sell and macd < signal and pressure < -0.05:
-            print("Delayed SELL on MACD confirmation and mild order book pressure")
-            self.wallet.sell(price, amount_pct=0.5)
-            self.last_trade_price = price
-            self.pending_rsi_sell = False
-            self.sell_points.append((self.timestamps[-1], price))
-        else:
-            if rsi > 70:
-                self.pending_rsi_sell = True
+        if self.wallet.crypto > 0:
+            if rsi > 70 and macd < signal and pressure < -0.1:
+                print("High-confidence SELL signal (with negative order book pressure)")
+                self.wallet.sell(price, amount_pct=1)
+                self.last_trade_price = price
+                self.pending_rsi_sell = False
+                self.sell_points.append((self.timestamps[-1], price))
+            elif self.pending_rsi_sell and macd < signal and pressure < -0.05:
+                print("Delayed SELL on MACD confirmation and mild order book pressure")
+                self.wallet.sell(price, amount_pct=1)
+                self.last_trade_price = price
+                self.pending_rsi_sell = False
+                self.sell_points.append((self.timestamps[-1], price))
+            else:
+                if rsi > 70:
+                    self.pending_rsi_sell = True
 
     def plot(self):
         if not self.rsi_vals or not self.macd_vals or not self.signal_vals:

@@ -16,7 +16,7 @@ def main(symbol, pair):
             algo.decide(price, bids, asks)
             print(f"Current Price: {price:.2f}, Crypto: {wallet.crypto:.6f}, Fiat: {wallet.fiat:.2f}")
             algo.plot()
-        time.sleep(2) 
+        time.sleep(10) 
 
 if __name__ == "__main__":
-    main("BTCUSDT", "B-BTC_USDT")
+    main("VINUUSDT", "I-VINU_USDT")

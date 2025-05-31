@@ -1,7 +1,7 @@
 class Wallet:
     def __init__(self):
         self.crypto = 0
-        self.fiat = 100000  # Example starting capital
+        self.fiat = 2500  # Example starting capital
 
     def buy(self, price, amount_pct=1.0):
         amount = (self.fiat * amount_pct) / price
