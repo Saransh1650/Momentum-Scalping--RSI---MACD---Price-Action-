@@ -72,6 +72,18 @@ class Algo:
                 return True
         return False
 
+    def get_trend_direction(self, prices, fast=10, slow=50):
+        if len(prices) < slow:
+            return None
+        fast_ema = self.ema(prices[-slow:], fast)
+        slow_ema = self.ema(prices[-slow:], slow)
+        if fast_ema > slow_ema:
+            return 'uptrend'
+        elif fast_ema < slow_ema:
+            return 'downtrend'
+        return 'sideways'
+    
+
     def get_order_book_pressure(self, bids, asks, top_n=5):
         """
         Calculate order book pressure as (sum_bid_volume - sum_ask_volume) / total_volume
