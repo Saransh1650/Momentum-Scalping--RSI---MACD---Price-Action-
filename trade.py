@@ -1,22 +1,21 @@
-from data_fetcher import CoinDCXFetcher, CoinDCXOrderBookFetcher
-from predict import Algo
+from algo.algo import Algo
 from wallet import Wallet
+from utils.plotter import PlotManager
+from data_fetcher import DataFetcher
+import time
 
 def main(symbol, pair):
-    fetcher_price = CoinDCXFetcher(symbol)
-    fetcher_orderbook = CoinDCXOrderBookFetcher(symbol, pair)
+    fetcher = DataFetcher(symbol, pair)
     wallet = Wallet()
     algo = Algo(wallet)
+    plotter = PlotManager(algo)
 
-    import time
     while True:
-        price = fetcher_price.get_latest_price()
-        bids, asks = fetcher_orderbook.get_order_book()
-        if price is not None:
-            algo.decide(price, bids, asks)
-            print(f"Current Price: {price:.2f}, Crypto: {wallet.crypto:.6f}, Fiat: {wallet.fiat:.2f}")
-            algo.plot()
-        time.sleep(10) 
+        data = fetcher.fetch_market_data()
+        if data is not None:
+            algo.decide(data.price, data.high, data.low, data.bids, data.asks, data.timestamp)
+            plotter.plot()
+        time.sleep(1) 
 
 if __name__ == "__main__":
-    main("VINUUSDT", "I-VINU_USDT")
+    main("BTCUSDT", "B-BTC_USDT")
