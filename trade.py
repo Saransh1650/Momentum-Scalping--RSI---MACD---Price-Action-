@@ -15,7 +15,8 @@ def main(symbol, pair):
         if data is not None:
             algo.decide(data.price, data.high, data.low, data.bids, data.asks, data.timestamp)
             plotter.plot()
+            print(f"balance left: {wallet.fiat}")
         time.sleep(1) 
 
 if __name__ == "__main__":
-    main("BTCUSDT", "B-BTC_USDT")
+    main("XUSDT", "I-X_USDT")
