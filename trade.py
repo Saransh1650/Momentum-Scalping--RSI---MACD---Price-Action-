@@ -16,7 +16,9 @@ def main(symbol, pair):
             algo.decide(data.price, data.high, data.low, data.bids, data.asks, data.timestamp)
             plotter.plot()
             print(f"balance left: {wallet.fiat}")
-        time.sleep(1) 
+            print(f"BUY POINTS :: {algo.buy_points}")
+            print(f"SELL POINTS :: {algo.sell_points}")
+        time.sleep(3) 
 
 if __name__ == "__main__":
-    main("XUSDT", "I-X_USDT")
+    main("ETHUSDT", "I-ETH_USDT")

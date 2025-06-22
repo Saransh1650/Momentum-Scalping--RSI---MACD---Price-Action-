@@ -4,9 +4,11 @@ from algo.bollinger_bands import bollinger_bands
 from algo.cci import cci
 from algo.stochastic_oscillator import stochastic_oscillator
 from algo.indicators import calculate_rsi, calculate_macd, is_flat_market
+from algo.indicators import get_trend_direction
 from algo.orderbook import get_order_book_pressure
 import numpy as np
 from utils.logger import fmt
+from utils.trend_enums import Trends
 import datetime
 
 class Algo:
@@ -57,7 +59,12 @@ class Algo:
 
         # Base indicators
         rsi = calculate_rsi(self.close_prices)
-        macd, signal = calculate_macd(self.close_prices, self.macd_vals)
+        macd_signal = calculate_macd(self.close_prices, self.macd_vals)
+        if macd_signal is None or not isinstance(macd_signal, (tuple, list)) or len(macd_signal) != 2:
+            macd, signal = None, None
+        else:
+            macd, signal = macd_signal
+        trend_direction = get_trend_direction(self.close_prices)
         self.signal_vals.append(signal)
         self.rsi_vals.append(rsi or np.nan)
 
@@ -83,51 +90,61 @@ class Algo:
         print(f"P:{price:.2f} "
               f"RSI:{fmt(rsi,1)} MACD:{fmt(macd,4)}/{fmt(signal,4)} "
               f"ATR:{fmt(atr_val,3)} ADX:{fmt(adx_val,1)} CCI:{fmt(cci_val,1)} "
-              f"%K/D:{fmt(stoch_k,1)}/{fmt(stoch_d,1)}")
+              f"%K/D:{fmt(stoch_k,1)}/{fmt(stoch_d,1)} "
+              f"direction: {trend_direction}"
+              )
 
         if None in (rsi, macd, atr_val, adx_val, stoch_k):
             return
         if self.should_skip_due_to_price_stagnation(price):
             return
+        if not adx_val or not rsi or not macd or not stoch_d or not stoch_k:
+            print("adx_val, rsi, macd, stoch_d, stoch_k -> none")
+        else:
+            pressure = get_order_book_pressure(bids, asks) if bids and asks else 0
+            print(f"Pressure:{pressure:.3f}")
 
-        pressure = get_order_book_pressure(bids, asks) if bids and asks else 0
-        print(f"Pressure:{pressure:.3f}")
-
-        # Exit logic
-        if self.wallet.crypto > 0 and (is_flat_market(self.close_prices) or adx_val < 20):
-            print("Flat or weak trend. Selling full position.")
-            self.wallet.sell(price, amount_pct=1)
-            self.last_trade_price = price
-            self.sell_points.append((self.timestamps[-1], price))
-            return
-
-        # Buy logic
-        if self.wallet.fiat > 0:
-            if (rsi < 30 and macd > signal and pressure > 0.1 and
-                price < lower_bb and stoch_k < 20 and adx_val > 25):
-                print("Strong BUY signal.")
-                self.wallet.buy(price, amount_pct=1)
-                self._record_buy(price)
-            elif self.pending_rsi_buy and macd > signal and pressure > 0.05:
-                print("Delayed BUY.")
-                self.wallet.buy(price, amount_pct=1)
-                self._record_buy(price)
-            elif rsi < 30:
-                self.pending_rsi_buy = True
-
-        # Sell logic
-        if self.wallet.crypto > 0:
-            if (rsi > 70 and macd < signal and pressure < -0.1 and
-                price > upper_bb and stoch_k > 80 and adx_val > 25):
-                print("Strong SELL signal.")
+            # Exit logic
+            if self.wallet.crypto > 0 and (is_flat_market(self.close_prices) or adx_val < 20):
+                print("Flat or weak trend. Selling full position.")
                 self.wallet.sell(price, amount_pct=1)
-                self._record_sell(price)
-            elif self.pending_rsi_sell and macd < signal and pressure < -0.05:
-                print("Delayed SELL.")
-                self.wallet.sell(price, amount_pct=1)
-                self._record_sell(price)
-            elif rsi > 70:
-                self.pending_rsi_sell = True
+                self.last_trade_price = price
+                self.sell_points.append((self.timestamps[-1], price))
+                return
+
+            # Buy logic
+            if self.wallet.fiat > 0  and trend_direction == Trends.UPTREND:
+                if (rsi < 30 and macd > signal and pressure > 0.1 and
+                    price < lower_bb and stoch_k < 20 and adx_val > 25):
+                    print("Strong BUY signal.")
+                    self.wallet.buy(price, amount_pct=1)
+                    self._record_buy(price)
+                elif self.pending_rsi_buy and macd > signal and pressure > 0.05:
+                    print("Delayed BUY.")
+                    self.wallet.buy(price, amount_pct=1)
+                    self._record_buy(price)
+                elif rsi < 30:
+                    self.pending_rsi_buy = True
+            else:
+                if trend_direction == Trends.DOWNTREND:
+                    print("Avoid Buying, down trend")
+
+            # Sell logic
+            if self.wallet.crypto > 0 and trend_direction != Trends.UPTREND:
+                if (rsi > 70 and macd < signal and pressure < -0.1 and
+                    price > upper_bb and stoch_k > 80 and adx_val > 25):
+                    print("Strong SELL signal.")
+                    self.wallet.sell(price, amount_pct=1)
+                    self._record_sell(price)
+                elif self.pending_rsi_sell and macd < signal and pressure < -0.05:
+                    print("Delayed SELL.")
+                    self.wallet.sell(price, amount_pct=1)
+                    self._record_sell(price)
+                elif rsi > 70:
+                    self.pending_rsi_sell = True
+            else:
+                if trend_direction == Trends.UPTREND:
+                    print("Avoid Selling, uptrend")
 
         self._trim()
 

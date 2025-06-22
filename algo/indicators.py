@@ -1,4 +1,5 @@
 import numpy as np
+from utils.trend_enums import Trends
 
 def ema(prices, period):
     if len(prices) < period:
@@ -29,10 +30,13 @@ def calculate_macd(prices, macd_vals, fast=12, slow=26, signal=9):
         return None, None
     ema_fast = ema(prices[-slow:], fast)
     ema_slow = ema(prices[-slow:], slow)
-    macd = ema_fast - ema_slow
-    macd_vals.append(macd)
-    signal_line = ema(macd_vals, signal) if len(macd_vals) >= signal else 0
-    return macd, signal_line
+    if not ema_fast or not ema_slow:
+        print("ema_fast or ema_slow null")
+    else:    
+        macd = ema_fast - ema_slow
+        macd_vals.append(macd)
+        signal_line = ema(macd_vals, signal) if len(macd_vals) >= signal else 0
+        return macd, signal_line
 
 def is_flat_market(close_prices, window=20, threshold=0.001):
     if len(close_prices) < window:
@@ -45,8 +49,11 @@ def get_trend_direction(prices, fast=10, slow=50):
         return None
     fast_ema = ema(prices[-slow:], fast)
     slow_ema = ema(prices[-slow:], slow)
-    if fast_ema > slow_ema:
-        return 'uptrend'
-    elif fast_ema < slow_ema:
-        return 'downtrend'
-    return 'sideways'
+    if not fast_ema or not slow_ema:
+        print("fast_ema and slow ema are none")
+    else:    
+        if fast_ema > slow_ema:
+            return Trends.UPTREND
+        elif fast_ema < slow_ema:
+            return Trends.DOWNTREND
+        return Trends.SIDEWAYS
