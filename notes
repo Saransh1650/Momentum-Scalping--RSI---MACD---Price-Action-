@@ -1,0 +1,15 @@
+✅ - need to fix the wallet and check this 
+Avoid Selling, uptrend
+balance left: 2506.4570341869003
+BUY POINTS :: [(datetime.datetime(2025, 6, 22, 16, 33, 1, 693012), 2261.1)]
+SELL POINTS :: [(datetime.datetime(2025, 6, 22, 16, 35, 21, 716700), 2266.94)]
+P:2277.89 RSI:88.9 MACD:1.6763/1.2701 ATR:232.800 ADX:0.0 CCI:216.7 %K/D:26.6/25.2 direction: Trends.UPTREND
+calculated pressure: -0.46219709767914385
+Pressure:-0.462
+Avoid Selling, uptrend
+balance left: 2506.4570341869003
+
+
+- need to remove or fix the stoch algo
+- need to add a logic to use bb lines correctly right now if the prices is lower than lower_bb then the buy happens which is stupid, either execute order when its out the that range
+- need to get some way to get that if the price slowly goes down none of the indicators work
