@@ -140,7 +140,7 @@ class Algo:
             # Sell logic
             if self.wallet.crypto > 0 :
                 if trend_direction != Trends.UPTREND:
-                    if (rsi > 70 and macd < signal and pressure < -0.1 
+                    if (macd < signal and pressure < -0.05 
                         ):
                         print("Strong SELL signal.")
                         self.wallet.sell(price, amount_pct=1)

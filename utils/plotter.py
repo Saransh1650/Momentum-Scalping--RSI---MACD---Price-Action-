@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+plt.style.use('dark_background')
 
 class PlotManager:
     def __init__(self, algo):
@@ -16,7 +17,7 @@ class PlotManager:
 
         # Subplot 1: Price Chart with Bollinger Bands
         plt.subplot(6, 1, 1)
-        plt.plot(timestamps, self.algo.close_prices, label="Price", color='black')
+        plt.plot(timestamps, self.algo.close_prices, label="Price", color='yellow')
         buy_x, buy_y = zip(*self.algo.buy_points) if self.algo.buy_points else ([], [])
         sell_x, sell_y = zip(*self.algo.sell_points) if self.algo.sell_points else ([], [])
         plt.scatter(buy_x, buy_y, label="Buy", color='green', marker='^')
