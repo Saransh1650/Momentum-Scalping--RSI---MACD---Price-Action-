@@ -1,0 +1,1 @@
+https://github.com/Saransh1650/Momentum-Scalping--RSI---MACD---Price-Action-/blob/main/image.png?raw=true<img width="2379" height="1979" alt="image" src="https://github.com/user-attachments/assets/343499f7-ba99-4eef-9738-71b06dec16cb" />
